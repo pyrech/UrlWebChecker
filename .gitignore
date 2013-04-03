@@ -1,0 +1,20 @@
+# Sublim Text project files
+sftp-config.json
+*.sublime-project
+*.sublime-workspace
+
+# IntelliJ files
+.idea/
+out/
+
+
+#Mac file
+.DS_Store
+*.swp
+*.lock
+profile
+
+
+# Git
+#.gitignore
+
