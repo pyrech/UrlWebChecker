@@ -4,6 +4,10 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import javax.swing.text.MutableAttributeSet;
+import javax.swing.text.html.HTML;
+import javax.swing.text.html.HTMLEditorKit;
+import javax.swing.text.html.parser.ParserDelegator;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -23,6 +27,7 @@ import java.io.*;
 
 public class WebCrawler {
 
+    private static final String END_OF_INPUT = "\\Z";
     public static final boolean DEBUG = true;
 
     private int limit;
@@ -73,17 +78,19 @@ public class WebCrawler {
 
         new_urls.add(url_str);
 
-        while (crawled_urls.size() <= limit) {
+        while (crawled_urls.size() < (limit-1)) {
             if (new_urls.isEmpty()) {
                 break;
             }
-            processURL(new_urls.remove());
+            processURL(new_urls.getFirst());
+            new_urls.remove();
         }
         System.out.println("Search complete ("+crawled_urls.size()+" url crawled).");
     }
 
     private void processURL(String url_str) {
-        URL url;
+        final URL url;
+        URLConnection url_connection;
         ItemRow row = new ItemRow(url_str);
         String content;
         try {
@@ -97,37 +104,34 @@ public class WebCrawler {
 
         try {
             // try opening the URL
-            URLConnection url_connection = url.openConnection();
+            url_connection = url.openConnection();
+        }
+        catch (IOException e) {
+            System.out.println("ERROR: couldn't open URL ");
+            return;
+        }
+        try {
             if (DEBUG) System.out.println("Downloading " + url.toString());
 
             url_connection.setAllowUserInteraction(false);
 
-            InputStream url_stream = url.openStream();
-            // search the input stream for links
-            // first, read in the entire URL
-            byte b[] = new byte[1000];
-            int num_read = url_stream.read(b);
-            content = new String(b, 0, num_read);
-            while ((num_read != -1)) {
-                num_read = url_stream.read(b);
-                if (num_read != -1) {
-                    String new_content = new String(b, 0, num_read);
-                    content += new_content;
-                }
-            }
+            Scanner scanner = new Scanner(url_connection.getInputStream());
+            scanner.useDelimiter(END_OF_INPUT);
+            content = scanner.next();
             if (url_connection instanceof HttpURLConnection) {
                 HttpURLConnection http_connection = (HttpURLConnection) url_connection;
                 row.setHttpStatus(http_connection.getResponseCode());
             }
         }
         catch (IOException e) {
-            System.out.println("ERROR: couldn't open URL ");
-            return;
+            e.printStackTrace();
+            content = "";
         }
 
         // TODO
         // checker si type mime html / xml
 
+        /*System.out.println("start document");
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 
         DocumentBuilder builder = null;
@@ -151,6 +155,7 @@ public class WebCrawler {
             e.printStackTrace();
             return;
         }
+        System.out.println("end document");
 
         Element root = document.getDocumentElement();
         NodeList list_links = root.getElementsByTagName("a");
@@ -161,6 +166,30 @@ public class WebCrawler {
                 // tester internal ou pas
                 foundURL(url, e.getAttribute("href"));
             }
+        } */
+
+        StringReader reader = new StringReader(content);
+        ParserDelegator parserDelegator = new ParserDelegator();
+        HTMLEditorKit.ParserCallback parserCallback = new HTMLEditorKit.ParserCallback() {
+            public void handleText(final char[] data, final int pos) { }
+            public void handleStartTag(HTML.Tag tag, MutableAttributeSet attribute, int pos) {
+                if (tag == HTML.Tag.A) {
+                    String address = (String) attribute.getAttribute(HTML.Attribute.HREF);
+                    // tester internal ou pas
+                    foundURL(url, address);
+                }
+            }
+            public void handleEndTag(HTML.Tag t, final int pos) {  }
+            public void handleSimpleTag(HTML.Tag t, MutableAttributeSet a, final int pos) { }
+            public void handleComment(final char[] data, final int pos) { }
+            public void handleError(final java.lang.String errMsg, final int pos) { }
+        };
+
+        try {
+            parserDelegator.parse(reader, parserCallback, true);
+        }
+        catch (IOException e) {
+            e.printStackTrace();
         }
 
         // Parcourir le dom pour
@@ -212,102 +241,5 @@ public class WebCrawler {
         Properties newprops = new Properties(props);
         System.setProperties(newprops);
 
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public static final String DISALLOW = "Disallow:";
-    public static final int MAXSIZE = 20000; // Max size of file
-
-    // URLs to be searched
-    Vector newURLs;
-    // Known URLs
-    HashMap<String, ItemRow> knownURLs;
-    // max number of pages to download
-    int maxPages;
-
-
-
-// Download contents of URL
-
-    public String getpage(URL url)
-
-    { try {
-        // try opening the URL
-        URLConnection urlConnection = url.openConnection();
-        System.out.println("Downloading " + url.toString());
-
-        urlConnection.setAllowUserInteraction(false);
-
-        InputStream urlStream = url.openStream();
-        // search the input stream for links
-        // first, read in the entire URL
-        byte b[] = new byte[1000];
-        int numRead = urlStream.read(b);
-        String content = new String(b, 0, numRead);
-        while ((numRead != -1) && (content.length() < MAXSIZE)) {
-            numRead = urlStream.read(b);
-            if (numRead != -1) {
-                String newContent = new String(b, 0, numRead);
-                content += newContent;
-            }
-        }
-        return content;
-
-    } catch (IOException e) {
-        System.out.println("ERROR: couldn't open URL ");
-        return "";
-    }  }
-
-// Go through page finding links to URLs.  A link is signalled
-// by <a href=" ...   It ends with a close angle bracket, preceded
-// by a close quote, possibly preceded by a hatch mark (marking a
-// fragment, an internal page marker)
-
-    public void processpage(URL url, String page)
-
-    { String lcPage = page.toLowerCase(); // Page in lower case
-        int index = 0; // position in page
-        int iEndAngle, ihref, iURL, iCloseQuote, iHatchMark, iEnd;
-        while ((index = lcPage.indexOf("<a",index)) != -1) {
-            iEndAngle = lcPage.indexOf(">",index);
-            ihref = lcPage.indexOf("href",index);
-            if (ihref != -1) {
-                iURL = lcPage.indexOf("\"", ihref) + 1;
-                if ((iURL != -1) && (iEndAngle != -1) && (iURL < iEndAngle))
-                { iCloseQuote = lcPage.indexOf("\"",iURL);
-                    iHatchMark = lcPage.indexOf("#", iURL);
-                    if ((iCloseQuote != -1) && (iCloseQuote < iEndAngle)) {
-                        iEnd = iCloseQuote;
-                        if ((iHatchMark != -1) && (iHatchMark < iCloseQuote))
-                            iEnd = iHatchMark;
-                        String newUrlString = page.substring(iURL,iEnd);
-                        addnewurl(url, newUrlString);
-                    } } }
-            index = iEndAngle;
-        }
-    }    */
+    }*/
 }

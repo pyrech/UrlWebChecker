@@ -84,6 +84,7 @@ public class MainWindow extends JFrame implements ActionListener, CrawlerListene
 
         String[] column_names = {"#","URL","HTTP status"};
         table = new JTable();
+        table.setAutoCreateRowSorter(true);
         table_model = new DefaultTableModel(column_names, 0);
         table.setModel(table_model);
 
@@ -110,6 +111,8 @@ public class MainWindow extends JFrame implements ActionListener, CrawlerListene
     }
 
     public void crawl() {
+        ItemRow.resetId();
+        table_model.setRowCount(0);
         Thread t = new Thread(new WebCrawlerRunnable(crawler, domain_field.getText(),  Integer.decode(limit_field.getText())));
         t.start();
     }

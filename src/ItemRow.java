@@ -25,6 +25,10 @@ public class ItemRow {
         this.url = url;
     }
 
+    static public void resetId() {
+        ItemRow.next_id = 1;
+    }
+
     public int getId() {
         return id;
     }
