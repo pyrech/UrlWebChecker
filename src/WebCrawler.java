@@ -51,7 +51,7 @@ public class WebCrawler {
 
     protected void fireNewRow(ItemRow row) {
         for(CrawlerListener listener : crawler_listeners) {
-            listener.newRow(row);
+            listener.newRow(row, crawled_urls.size());
         }
     }
 
@@ -67,7 +67,6 @@ public class WebCrawler {
         this.new_urls = new LinkedList<String>();
 
         if (url_str.indexOf("://") == -1) {
-            System.out.println("no protocol");
             this.fireUpdatedDomain("http://"+url_str);
             return;
         }

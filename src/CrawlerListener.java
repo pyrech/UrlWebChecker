@@ -7,6 +7,6 @@
  */
 public interface CrawlerListener {
     void updateDomain(String url);
-    void newRow(ItemRow row);
+    void newRow(ItemRow row, int nb_crawled_urls);
     void updateRow(ItemRow row);
 }

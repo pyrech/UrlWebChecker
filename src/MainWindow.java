@@ -123,8 +123,14 @@ public class MainWindow extends JFrame implements ActionListener, CrawlerListene
         crawl();
     }
 
-    public void newRow(ItemRow row) {
+    public void newRow(ItemRow row, int nb_crawled_urls) {
         table_model.addRow(asObjectRow(row));
+        if (nb_crawled_urls > 1) {
+            this.nb_url_crawled_field.setText(nb_crawled_urls+" urls crawled");
+        }
+        else {
+            this.nb_url_crawled_field.setText(nb_crawled_urls+" url crawled");
+        }
     }
 
     public void updateRow(ItemRow row) {
