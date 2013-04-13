@@ -34,34 +34,34 @@ public class WebCrawler {
     HashMap<String, ItemRow> crawled_urls;
     LinkedList<String> new_urls;
 
-    private final Collection<CrawlerListener> crawler_listeners = new ArrayList<CrawlerListener>();
+    private final Collection<CrawlerListener> listeners = new ArrayList<CrawlerListener>();
 
     public void addListener(CrawlerListener listener) {
-        crawler_listeners.add(listener);
+        listeners.add(listener);
     }
 
     public void removeListener(CrawlerListener listener) {
-        crawler_listeners.remove(listener);
+        listeners.remove(listener);
     }
 
-    public CrawlerListener[] getRowListeners() {
-        return crawler_listeners.toArray(new CrawlerListener[0]);
+    public CrawlerListener[] getListeners() {
+        return listeners.toArray(new CrawlerListener[0]);
     }
 
     protected void fireUpdatedDomain(String url) {
-        for(CrawlerListener listener : crawler_listeners) {
+        for(CrawlerListener listener : listeners) {
             listener.updateDomain(url);
         }
     }
 
     protected void fireNewRow(ItemRow row) {
-        for(CrawlerListener listener : crawler_listeners) {
+        for(CrawlerListener listener : listeners) {
             listener.newRow(row, crawled_urls.size());
         }
     }
 
     protected void fireUpdatedRow(ItemRow row) {
-        for(CrawlerListener listener : crawler_listeners) {
+        for(CrawlerListener listener : listeners) {
             listener.updateRow(row);
         }
     }
@@ -78,7 +78,7 @@ public class WebCrawler {
 
         new_urls.add(url_str);
 
-        while (crawled_urls.size() < (limit-1)) {
+        while (crawled_urls.size() < limit) {
             if (new_urls.isEmpty()) {
                 break;
             }
@@ -91,7 +91,7 @@ public class WebCrawler {
     private void processURL(String url_str) {
         final URL url;
         URLConnection url_connection;
-        ItemRow row = new ItemRow(url_str);
+        final ItemRow row = new ItemRow(url_str);
         String content;
         try {
             url = new URL(url_str);
@@ -171,16 +171,32 @@ public class WebCrawler {
         StringReader reader = new StringReader(content);
         ParserDelegator parserDelegator = new ParserDelegator();
         HTMLEditorKit.ParserCallback parserCallback = new HTMLEditorKit.ParserCallback() {
-            public void handleText(final char[] data, final int pos) { }
-            public void handleStartTag(HTML.Tag tag, MutableAttributeSet attribute, int pos) {
+            private boolean is_head = false;
+            private boolean is_title = false;
+            public void handleText(final char[] data, final int pos) {
+                if (is_title) {
+                    row.setTitle(new String(data));
+                }
+            }
+            public void handleStartTag(HTML.Tag tag, MutableAttributeSet attributes, int pos) {
                 if (tag == HTML.Tag.A) {
-                    String address = (String) attribute.getAttribute(HTML.Attribute.HREF);
+                    String address = (String) attributes.getAttribute(HTML.Attribute.HREF);
                     // tester internal ou pas
                     foundURL(url, address);
                 }
+                else if (tag == HTML.Tag.HEAD) {
+                    is_head = true;
+                }
+                else if (tag == HTML.Tag.TITLE && is_head) {
+                    is_title = true;
+                }
             }
-            public void handleEndTag(HTML.Tag t, final int pos) {  }
-            public void handleSimpleTag(HTML.Tag t, MutableAttributeSet a, final int pos) { }
+            public void handleEndTag(HTML.Tag tag, final int pos) {
+                is_head = false;
+                is_title = false;
+            }
+            public void handleSimpleTag(HTML.Tag tag, MutableAttributeSet a, final int pos) {
+            }
             public void handleComment(final char[] data, final int pos) { }
             public void handleError(final java.lang.String errMsg, final int pos) { }
         };

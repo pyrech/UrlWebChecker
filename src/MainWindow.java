@@ -3,9 +3,9 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
 import java.io.IOException;
-import java.util.Observable;
-import java.util.Observer;
+import java.util.ArrayList;
 
 /**
  * Created with IntelliJ IDEA.
@@ -14,25 +14,23 @@ import java.util.Observer;
  * Time: 20:42
  * To change this template use File | Settings | File Templates.
  */
-public class MainWindow extends JFrame implements ActionListener, CrawlerListener {
+public class MainWindow extends JFrame
+        implements ActionListener, CrawlerListener, SettingsListener {
 
     public final static int WIDTH = 800;
     public final static int HEIGHT = 600;
 
-    // Component
-    JPanel container;
-    //UrlListView url_list_view;
     private JLabel domain_label;
     private JTextField domain_field;
-    private JLabel limit_label;
-    private JTextField limit_field;
     private JButton launch_button;
     private JLabel nb_url_crawled_field;
+    private Settings settings;
     private WebCrawler crawler;
     private JTable table;
-    private DefaultTableModel table_model;
+    private UrlTableModel table_model;
 
     public MainWindow() {
+        settings = Settings.get();
         crawler = new WebCrawler();
         crawler.addListener(this);
         this.setTitle("Url Web Checker");
@@ -40,15 +38,33 @@ public class MainWindow extends JFrame implements ActionListener, CrawlerListene
         this.setLocationRelativeTo(null);
         this.setResizable(true);
         this.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-        this.createGUI();
+        this.initGUI();
     }
 
-    private void createGUI() {
-        this.container = new JPanel();
+    private void initGUI() {
+
+        // Menu bar.
+        JMenuBar menuBar = new JMenuBar();
+        JMenu menu = new JMenu("Options");
+        //menu.setMnemonic(KeyEvent.VK_A);
+        //menu.getAccessibleContext().setAccessibleDescription("text");
+        menuBar.add(menu);
+
+        JMenuItem menuItem = new JMenuItem("Settings",
+                KeyEvent.VK_T);
+        //menuItem.setAccelerator(KeyStroke.getKeyStroke(
+        //        KeyEvent.VK_1, ActionEvent.ALT_MASK));
+        //menuItem.getAccessibleContext().setAccessibleDescription("test");
+        menuItem.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                new SettingsDialog(null, "Settings", true, settings);
+            }
+        });
+        menu.add(menuItem);
+
+        this.setJMenuBar(menuBar);
+
         JPanel control_panel = new JPanel();
-        control_panel.setPreferredSize(new Dimension(MainWindow.WIDTH, 50));
-        //this.url_list_view = new UrlListView();
-        //this.url_list_view.setPreferredSize(new Dimension(MainWindow.WIDTH, MainWindow.HEIGHT - 100));
 
         // Initialize control panel components
         this.domain_label = new JLabel("Domain :");
@@ -61,10 +77,6 @@ public class MainWindow extends JFrame implements ActionListener, CrawlerListene
                 crawl();
             }
         });
-        this.limit_label = new JLabel("Max :");
-        this.limit_field = new JTextField();
-        this.limit_field.setText("20");
-        this.limit_field.setPreferredSize(new Dimension(20, 30));
         this.nb_url_crawled_field = new JLabel("0 url crawled");
 
         // Add components to control panel
@@ -72,31 +84,27 @@ public class MainWindow extends JFrame implements ActionListener, CrawlerListene
         control_panel.add(this.domain_field);
         control_panel.add(Box.createRigidArea(new Dimension(20,0)));
         control_panel.add(this.launch_button);
-        control_panel.add(Box.createRigidArea(new Dimension(20,0)));
-        control_panel.add(this.limit_label);
-        control_panel.add(this.limit_field);
+        control_panel.add(Box.createRigidArea(new Dimension(50,0)));
         control_panel.add(this.nb_url_crawled_field);
 
-        // Initialize the UrlListView
-        //this.url_list_view = new UrlListView();
-        //this.url_list_view.setPreferredSize(new Dimension(MainWindow.WIDTH, MainWindow.HEIGHT - 100));
-
-
-        String[] column_names = {"#","URL","HTTP status"};
+        // Table
         table = new JTable();
-        table.setAutoCreateRowSorter(true);
-        table_model = new DefaultTableModel(column_names, 0);
-        table.setModel(table_model);
-
-        JScrollPane scrollPane = new JScrollPane();
-        scrollPane.setViewportView(table);
+        //table.setAutoCreateRowSorter(true);
         table.setFillsViewportHeight(true);
 
-        // Add panels to the main container
-        this.container.add(control_panel);
-        //this.container.add(url_list_view);
-        this.container.add(scrollPane);
-        this.setContentPane(this.container);
+        table_model = new UrlTableModel(settings.getColumns());
+        crawler.addListener(table_model);
+        settings.addListener(table_model);
+        table.setModel(table_model);
+
+        JScrollPane scroll_pan = new JScrollPane();
+        scroll_pan.setBackground(Color.white);
+        scroll_pan.setViewportView(table);
+
+        // Add panels to the window
+        this.setLayout(new BorderLayout());
+        this.getContentPane().add(control_panel, BorderLayout.NORTH);
+        this.getContentPane().add(scroll_pan, BorderLayout.CENTER);
     }
 
     public void actionPerformed(ActionEvent evt) {
@@ -112,13 +120,9 @@ public class MainWindow extends JFrame implements ActionListener, CrawlerListene
 
     public void crawl() {
         ItemRow.resetId();
-        table_model.setRowCount(0);
-        Thread t = new Thread(new WebCrawlerRunnable(crawler, domain_field.getText(),  Integer.decode(limit_field.getText())));
+        table_model.reset();
+        Thread t = new Thread(new WebCrawlerRunnable(crawler, domain_field.getText(), settings.getCrawlLimit()));
         t.start();
-    }
-
-    public Object[] asObjectRow(ItemRow row) {
-        return new Object[]{row.getId(), row.getUrl(), row.getHttpStatus()};
     }
 
     public void updateDomain(String url) {
@@ -127,7 +131,6 @@ public class MainWindow extends JFrame implements ActionListener, CrawlerListene
     }
 
     public void newRow(ItemRow row, int nb_crawled_urls) {
-        table_model.addRow(asObjectRow(row));
         if (nb_crawled_urls > 1) {
             this.nb_url_crawled_field.setText(nb_crawled_urls+" urls crawled");
         }
@@ -136,7 +139,9 @@ public class MainWindow extends JFrame implements ActionListener, CrawlerListene
         }
     }
 
-    public void updateRow(ItemRow row) {
-        //To change body of implemented methods use File | Settings | File Templates.
-    }
+    public void updateRow(ItemRow row) { }
+
+    public void updateLimit(int limit) { }
+
+    public void updateColumns(ArrayList<Integer> columns) { }
 }
