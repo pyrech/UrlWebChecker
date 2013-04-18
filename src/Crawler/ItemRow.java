@@ -1,21 +1,21 @@
-import java.net.URL;
+package Crawler;
 
 /**
  * Created with IntelliJ IDEA.
  * User: Loick
  * Date: 06/04/13
  * Time: 19:39
- * To change this template use File | Settings | File Templates.
+ * To change this template use File | Settings.Settings | File Templates.
  */
 public class ItemRow {
     private int id;
     private String url;
     private int number_hit = 0;
-    private int http_status;
-    private int number_external;
-    private int number_internal;
-    private String title;
-    private String description;
+    private String http_status = "";
+    private int number_external = 0;
+    private int number_internal = 0;
+    private String title = "";
+    private String description = "";
 
     private static int next_id = 1;
 
@@ -45,19 +45,15 @@ public class ItemRow {
         return number_hit;
     }
 
-    public void setNumberHit(int number_hit) {
-        this.number_hit = number_hit;
-    }
-
     public void incrementNumberHit() {
         this.number_hit++;
     }
 
-    public int getHttpStatus() {
+    public String getHttpStatus() {
         return http_status;
     }
 
-    public void setHttpStatus(int http_status) {
+    public void setHttpStatus(String http_status) {
         this.http_status = http_status;
     }
 
@@ -65,16 +61,24 @@ public class ItemRow {
         return number_external;
     }
 
-    public void setNumberExternal(int number_external) {
-        this.number_external = number_external;
+    public void setIncrementExternal(int number) {
+        this.number_external = number;
+    }
+
+    public void incrementExternal() {
+        this.number_external++;
     }
 
     public int getNumberInternal() {
         return number_internal;
     }
 
-    public void setNumberInternal(int number_internal) {
-        this.number_internal = number_internal;
+    public void setIncrementInternal(int number) {
+        this.number_internal = number;
+    }
+
+    public void incrementInternal() {
+        this.number_internal++;
     }
 
     public String getTitle() {

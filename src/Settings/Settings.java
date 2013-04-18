@@ -1,6 +1,9 @@
+package Settings;
+
+import Table.Column;
+
 import java.io.*;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -8,7 +11,7 @@ import java.util.Collection;
  * User: Loick
  * Date: 12/04/13
  * Time: 21:56
- * To change this template use File | Settings | File Templates.
+ * To change this template use File | Settings.Settings | File Templates.
  */
 public class Settings implements java.io.Serializable {
 

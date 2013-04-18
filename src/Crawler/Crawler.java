@@ -1,16 +1,18 @@
+package Crawler;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.html.HTML;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.parser.ParserDelegator;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import java.util.*;
 import java.net.*;
 import java.io.*;
@@ -20,19 +22,21 @@ import java.io.*;
  * User: Loick
  * Date: 06/04/13
  * Time: 14:10
- * To change this template use File | Settings | File Templates.
+ * To change this template use File | Settings.Settings | File Templates.
  *
  * http://cs.nyu.edu/courses/fall02/G22.3033-008/WebCrawler.java
  */
 
-public class WebCrawler {
+public class Crawler {
 
     private static final String END_OF_INPUT = "\\Z";
-    public static final boolean DEBUG = true;
+    public static final boolean DEBUG = false;
 
     private int limit;
+    private String domain;
+    private boolean continue_crawl = true;
     HashMap<String, ItemRow> crawled_urls;
-    LinkedList<String> new_urls;
+    LinkedHashMap<String, ItemRow> new_urls;
 
     private final Collection<CrawlerListener> listeners = new ArrayList<CrawlerListener>();
 
@@ -66,45 +70,71 @@ public class WebCrawler {
         }
     }
 
+    protected void fireCompleted() {
+        for(CrawlerListener listener : listeners) {
+            listener.completed();
+        }
+    }
+
+    protected void fireInterrupted() {
+        for(CrawlerListener listener : listeners) {
+            listener.interrupted();
+        }
+    }
+
     public void run(String url_str, int limit) {
+        this.continue_crawl = true;
         this.limit = limit;
         this.crawled_urls = new HashMap<String, ItemRow>();
-        this.new_urls = new LinkedList<String>();
+        this.new_urls = new LinkedHashMap<String, ItemRow>();
 
         if (url_str.indexOf("://") == -1) {
             this.fireUpdatedDomain("http://"+url_str);
             return;
         }
+        try {
+            URL url = new URL(url_str);
+            this.domain = url.getHost();
+        }
+        catch (MalformedURLException e) {
+            e.printStackTrace();
+            return;
+        }
 
-        new_urls.add(url_str);
+        new_urls.put(url_str, new ItemRow(url_str));
 
-        while (crawled_urls.size() < limit) {
+        while (limit < 1 || crawled_urls.size() < limit) {
+            if (!continue_crawl) {
+                this.fireInterrupted();
+                return;
+            }
             if (new_urls.isEmpty()) {
                 break;
             }
-            processURL(new_urls.getFirst());
-            new_urls.remove();
+            ItemRow current_row = new_urls.entrySet().iterator().next().getValue();
+            processRow(current_row);
+            new_urls.remove(current_row.getUrl());
         }
         System.out.println("Search complete ("+crawled_urls.size()+" url crawled).");
+        this.fireCompleted();
     }
 
-    private void processURL(String url_str) {
+    private void processRow(final ItemRow row) {
         final URL url;
-        URLConnection url_connection;
-        final ItemRow row = new ItemRow(url_str);
-        String content;
+        HttpURLConnection http_connection;
+        String content = "";
         try {
-            url = new URL(url_str);
+            url = new URL(row.getUrl());
         }
         catch (MalformedURLException e) {
-            System.out.println("Invalid URL " + url_str);
+            System.out.println("Invalid URL " + row.getUrl());
             return;
         }
         if (DEBUG) System.out.println("Searching " + url.toString());
 
         try {
             // try opening the URL
-            url_connection = url.openConnection();
+            http_connection = (HttpURLConnection) url.openConnection();
         }
         catch (IOException e) {
             System.out.println("ERROR: couldn't open URL ");
@@ -113,18 +143,27 @@ public class WebCrawler {
         try {
             if (DEBUG) System.out.println("Downloading " + url.toString());
 
-            url_connection.setAllowUserInteraction(false);
+            http_connection.setAllowUserInteraction(false);
 
-            Scanner scanner = new Scanner(url_connection.getInputStream());
+            Scanner scanner = new Scanner(http_connection.getInputStream());
             scanner.useDelimiter(END_OF_INPUT);
-            content = scanner.next();
-            if (url_connection instanceof HttpURLConnection) {
-                HttpURLConnection http_connection = (HttpURLConnection) url_connection;
-                row.setHttpStatus(http_connection.getResponseCode());
+            if (scanner.hasNext()) {
+                content = scanner.next();
             }
+            row.setHttpStatus(http_connection.getResponseCode()+" "+http_connection.getResponseMessage());
         }
         catch (IOException e) {
-            e.printStackTrace();
+            try  {
+                if (http_connection.getResponseCode() > 0) {
+                    row.setHttpStatus(http_connection.getResponseCode()+" "+http_connection.getResponseMessage());
+                }
+                else {
+                    e.printStackTrace();
+                }
+            }
+            catch(Exception exception) {
+
+            }
             content = "";
         }
 
@@ -181,13 +220,12 @@ public class WebCrawler {
             public void handleStartTag(HTML.Tag tag, MutableAttributeSet attributes, int pos) {
                 if (tag == HTML.Tag.A) {
                     String address = (String) attributes.getAttribute(HTML.Attribute.HREF);
-                    // tester internal ou pas
-                    foundURL(url, address);
+                    foundURL(url, address, row);
                 }
                 else if (tag == HTML.Tag.HEAD) {
                     is_head = true;
                 }
-                else if (tag == HTML.Tag.TITLE && is_head) {
+                else if (tag == HTML.Tag.TITLE) {
                     is_title = true;
                 }
             }
@@ -216,7 +254,7 @@ public class WebCrawler {
         this.fireNewRow(row);
     }
 
-    private void foundURL(URL old_url, String new_url_string) {
+    private void foundURL(URL old_url, String new_url_string, ItemRow row) {
         URL url;
         try {
             url = new URL(old_url, new_url_string);
@@ -225,18 +263,39 @@ public class WebCrawler {
             return;
         }
         String filename =  url.toString();
-        if (crawled_urls.containsKey(filename)) {
-            //ItemRow row = crawled_urls.get(filename);
-            //row.incrementNumberHit();
-            if (DEBUG) System.out.println("Already crawled URL " + filename);
-        }
-        else if (new_urls.contains(filename)) {
-            if (DEBUG) System.out.println("Already in queue URL " + filename);
+        if (!isInternal(url)) {
+            row.incrementExternal();
+            if (DEBUG) System.out.println("External URL " + filename);
         }
         else {
-            new_urls.add(filename);
-            if (DEBUG) System.out.println("Found new URL " + filename);
+            row.incrementInternal();
+            if (crawled_urls.containsKey(filename)) {
+                ItemRow row_crawled = crawled_urls.get(filename);
+                row_crawled.incrementNumberHit();
+                fireUpdatedRow(row_crawled);
+                if (DEBUG) System.out.println("Already crawled URL " + filename);
+            }
+            else if (new_urls.containsKey(filename)) {
+                ItemRow row_queued = new_urls.get(filename);
+                row_queued.incrementNumberHit();
+                fireUpdatedRow(row_queued);
+                if (DEBUG) System.out.println("Already in queue URL " + filename);
+            }
+            else {
+                ItemRow row_new = new ItemRow(filename);
+                row_new.incrementNumberHit();
+                new_urls.put(filename, row_new);
+                if (DEBUG) System.out.println("Found new URL " + filename);
+            }
         }
+    }
+
+    public boolean isInternal(URL url) {
+        return this.domain.equals(url.getHost());
+    }
+
+    public void stop() {
+        this.continue_crawl = false;
     }
 
 

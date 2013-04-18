@@ -1,3 +1,5 @@
+package Crawler;
+
 import java.io.*;
 import java.net.*;
 import java.util.Scanner;
@@ -7,7 +9,7 @@ import java.util.Scanner;
  * User: Loick
  * Date: 06/04/13
  * Time: 15:53
- * To change this template use File | Settings | File Templates.
+ * To change this template use File | Settings.Settings | File Templates.
  */
 
 /** Fetches the HTML content of a web page (or HTTP header) as a String. */

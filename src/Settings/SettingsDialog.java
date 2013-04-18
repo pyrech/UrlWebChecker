@@ -1,3 +1,7 @@
+package Settings;
+
+import Table.Column;
+
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -11,7 +15,7 @@ import javax.swing.*;
  * User: Loick
  * Date: 12/04/13
  * Time: 22:27
- * To change this template use File | Settings | File Templates.
+ * To change this template use File | Settings.Settings | File Templates.
  */
 public class SettingsDialog extends JDialog {
     private Settings settings;
