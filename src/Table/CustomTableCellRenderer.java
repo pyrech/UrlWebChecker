@@ -23,6 +23,9 @@ public class CustomTableCellRenderer extends DefaultTableCellRenderer {
         if (isSelected) {
             cell.setBackground(Color.lightGray);
         }
+        else if (row%2 == 1) {
+            cell.setBackground(Color.decode("#EEEEEE"));
+        }
         else {
             cell.setBackground(Color.white);
         }
